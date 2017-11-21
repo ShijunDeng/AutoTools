@@ -1,30 +1,43 @@
 # 欢迎autorder
+
 ##autorder是什么？
+
 **autorder**针对WNLO-DSAL实验的[小机房预定系统](http://115.156.135.252/dcms/index.php)(HUST校园内网访问)，通过程序自动抢占机器，进行预定，一次设置，便可以省去预定实验室定期预定机器的麻烦。
 
 -------------------
 
 ## autorder使用方法
-###配置
+
+### 配置
+
 1.克隆autorder到本地，进入hust/lab/autorder目录
+
 ```
 git clone https://github.com/ShijunDeng/AutoTools.git
 cd hust/lab/autorder
 ```
+
 2.修改配置文件
+
 - 修改conf/account.conf中的用户名和密码
 - 修改conf/machinesList.conf，将要预定的机器的编号填入，每台机器编号之间以空格隔开
 - 修改autorder权限，```chmod a+x autorder```
-###使用
+
+### 使用
+
 1.运行control.sh 启停、状态查看
+
 ```
 sh control.sh start|stop|status
 ```
+
 2.查看日志
+
 - log/monitor.log为autorder软件的系统日志
 - log/autorder.log为程序预定机器和监控机器的日志
 
-###其它
+### 其它
+
 程序比较简单，可结合代码移植。
 
 
