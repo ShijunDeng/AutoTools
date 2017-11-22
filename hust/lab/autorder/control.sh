@@ -20,6 +20,10 @@ tenancy=12
 maxTenancy=${tenancy}
 #机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
 deviationLimit=600
+#使开始进行高频刷新:因为预定系统所在的服务器和autorder所在的本地有时间误差,所以autorder对抢占时间的预测并不一定绝对准确,随着越来越接近抢占目标的deadline,
+#刷新频率会越来越高,最快是1s,但这仍然可能发生这种情况：抢占目标到达deadline被系统释放时,autorder没有及时的刷新。因此,比较保险的方法就是加大刷新频率,但是这会
+#增大服务器的压力,更容易被发现。
+highFreqLimit=300
 
 source conf/account.conf
 
@@ -46,7 +50,7 @@ function start() {
 
     # 开启服务,并保存pid到pidfile文件中
     #nohup ./${app} -c ${conf} >>${logfile} 2>&1 &
-    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" "${tenancy}" "${maxTenancy}" "${deviationLimit}">${monitorLog} 2>&1 &
+    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" "${tenancy}" "${maxTenancy}" "${deviationLimit}" "${highFreqLimit}">${monitorLog} 2>&1 &
     echo $!>${pidfile}
     # 监控程序${app}会记录服务pid
     sleep 1

@@ -24,6 +24,10 @@ maxTenancy=$9
 #机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
 shift
 deviationLimit=$9
+shift
+#进入高频刷新模式
+highFreqLimit=$9
+
 
 #nohup sh ./${app} ${username} ${password} ${mamachinesListFile} ${cookieFile}  ${loginURL}  ${detailURLPrefix}  ${orderURLPrefix}  ${logfile} ${loopFile} ${threshold} >${monitorLog} 2>&1 &
 function printLog()
@@ -86,8 +90,7 @@ do
 			#if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
 			if [ ${diffSeconds} -lt ${minDiff} ]; then
 				minDiff=${diffSeconds}
-			fi
-			
+			fi			
 	    elif [[ ${rs} =~ "申请使用" ]]; then
 			orderURL="${orderURLPrefix}${eachMachine}"
 			#默认按最大租期续租
@@ -101,8 +104,14 @@ do
 			printLog "未知错误:${rs}"
 	    fi
 	done
-	
+
+
+	if [ ${minDiff} -lt ${highFreqLimit} ]; then
+		minDiff=30
+	fi
+
 	sleepTime=$(( ${minDiff} / 60 + 1))
+
 	printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测"
 
 	if [ ${sleepTime} -gt ${threshold} ];then
