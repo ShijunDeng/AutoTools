@@ -1,7 +1,7 @@
 #!/bin/bash
 #此处为硬编码
 if [ $# !=14 ]; then
-    printLog "参数不合法,程序将退出"
+    printLog "参数不合法,程序将退出!"
     exit 0
 fi
 
@@ -47,7 +47,7 @@ fi
 truncate ${loginFile} --size=0
 echo -n 1 > ${loopFile}
 
-printLog "启动服务"
+printLog "启动服务!"
 
 #请求之前是否需要登录:高频请求不需要总是登录
 loginOption=1
@@ -57,9 +57,9 @@ do
 	if [ ${loginOption} -eq 1 ]; then
 		curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
 		if [ $? -eq 0 ]; then
-			printLog "登录成功"
+			printLog "登录成功!"
 		else
-			printLog "登录失败"
+			printLog "登录失败!"
 			exit 1
 		fi
 	fi
@@ -84,26 +84,31 @@ do
 				#服务器与本地的时间误差范围内
 				if [ ${diffSeconds} -gt ${deviationLimit} ]; then 
 					printLog "警告:${eachMachine}可能被长期占有,请确认!"
+					#过滤超期的机器对判断的干扰
+					diffSeconds=${minDiff}
+				else
+					printLog "警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
 				fi
 			else
-				printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期"
+				printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
 			fi
 
 			#if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
 			if [ ${diffSeconds} -lt ${minDiff} ]; then
 				minDiff=${diffSeconds}
+				echo ${eachMachine} ${minDiff}
 			fi			
 	    elif [[ ${rs} =~ "申请使用" ]]; then
 			orderURL="${orderURLPrefix}${eachMachine}"
 			#默认按最大租期续租
 			curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
 			if [ $? -eq 0 ]; then
-				printLog "预定${eachMachine}成功"
+				printLog "预定${eachMachine}成功!"
 			else
-				printLog "预定${eachMachine}失败"
+				printLog "预定${eachMachine}失败!"
 			fi
 		else 
-			printLog "未知错误:${rs}"
+			printLog "未知错误:${rs}!"
 	    fi
 	done
 
@@ -116,12 +121,12 @@ do
 
 	sleepTime=$(( ${minDiff} / 60 + 1))
 
-	printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测"
+	printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测!"
 
 	if [ ${sleepTime} -gt ${threshold} ];then
 		loginOption=1		
 	else
-		printLog "进入频繁刷新时期,切换到直接请求模式" 
+		printLog "进入频繁刷新时期,切换到直接请求模式!" 
 		loginOption=0
 	fi
 	sleep ${sleepTime}
