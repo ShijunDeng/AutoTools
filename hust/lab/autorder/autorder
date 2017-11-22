@@ -106,8 +106,8 @@ do
                 messageInfo="预定${eachMachine}成功!"
                 if [ ! "x${email}" = "x" ]; then
                     echo "${messageInfo}" | mail -s "机器预订成功提醒" ${email}
-			        if [ ! $? -eq 0 ]; then
-				        printLog "警告:通知邮件发送失败!"
+                    if [ ! $? -eq 0 ]; then
+                        printLog "警告:通知邮件发送失败!"
                     fi
                 fi
 				printLog ${messageInfo}
