@@ -12,12 +12,18 @@ detailURLPrefix="http://115.156.135.252/dcms/showdetail.php?ins_id="
 orderURLPrefix="http://115.156.135.252/dcms/applyins.php?ins_id="
 logFile="log/${module}.log"
 loopFile="var/.loop"
-#低于该门限值的,检测前不登录
+#低于该门限值的,检测前不登录,单位为妙
 threshold=300
+#租期默认为12天,单位为天
+tenancy=12
+#系统最大支持的租借天数
+maxTenancy=${tenancy}
 
 source conf/account.conf
 
 pidfile=var/.autorder-pid
+
+chmod a+x ./${module}
 
 ## function
 function start() {
@@ -38,10 +44,10 @@ function start() {
 
     # 开启服务,并保存pid到pidfile文件中
     #nohup ./${app} -c ${conf} >>${logfile} 2>&1 &
-    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" >${monitorLog} 2>&1 &
+    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" "${tenancy}" "${maxTenancy}">${monitorLog} 2>&1 &
     echo $!>${pidfile}
     # 监控程序${app}会记录服务pid
-    sleep 3s
+    sleep 1
     # 检查服务是否启动成功
     check_pid
     if [ $? -eq 0 ];then

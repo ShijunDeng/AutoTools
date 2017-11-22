@@ -15,6 +15,13 @@ loopFile=$9
 #低于该门限值的,检测前不登录
 shift
 threshold=$9
+#租期
+shift
+tenancy=$9
+#系统最大租期
+shift
+maxTenancy=$9
+
 #nohup sh ./${app} ${username} ${password} ${mamachinesListFile} ${cookieFile}  ${loginURL}  ${detailURLPrefix}  ${orderURLPrefix}  ${logfile} ${loopFile} ${threshold} >${monitorLog} 2>&1 &
 function printLog()
 {
@@ -48,7 +55,7 @@ do
 		fi
 	fi
 
-	minDiff=$(( 3600 * 24 * 12 ))
+	minDiff=$(( 3600 * 24 * ${tenancy} ))
 	machinesList="`cat ${mamachinesListFile}`"
 	for eachMachine in ${machinesList[@]}
 	do
@@ -59,7 +66,7 @@ do
 			startTimeStr=`echo "${rs}" | grep -E  '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' -o`
 			lease=`echo "${rs}" | grep -E  '[0-9]{2} 天' -o | grep -E '[0-9]{2}' -o`
 			secondsA=`date -d "${startTimeStr}" +%s`
-			deadline=`expr ${secondsA} + $(( 3600 * 24 * 12 ))`
+			deadline=`expr ${secondsA} + $(( 3600 * 24 * ${tenancy} ))`
 			secondsNow=`date +%s`
 			diffSeconds=$(( ${deadline} - ${secondsNow} ))
 			if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
@@ -72,7 +79,8 @@ do
 			fi
 	    elif [[ ${rs} =~ "申请使用" ]]; then
 			orderURL="${orderURLPrefix}${eachMachine}"
-			curl -F "sel_num=12" -b ${cookieFile} ${orderURL} > /dev/null
+			#默认按最大租期续租
+			curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
 			if [ $? -eq 0 ]; then
 				printLog "预定${eachMachine}成功"
 			else
