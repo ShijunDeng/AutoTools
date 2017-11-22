@@ -89,13 +89,12 @@ do
 		else 
 			printLog "未知错误:${rs}"
 	    fi
-	    loginOption=1
 	done
 	
 	sleepTime=$(( ${minDiff} / 60 + 1))
 	printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测"
 
-	if [ ${minDiff} -gt ${threshold} ];then
+	if [ ${sleepTime} -gt ${threshold} ];then
 		loginOption=1		
 	else
 		printLog "进入频繁刷新时期,切换到直接请求模式" 

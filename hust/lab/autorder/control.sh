@@ -13,7 +13,7 @@ orderURLPrefix="http://115.156.135.252/dcms/applyins.php?ins_id="
 logFile="log/${module}.log"
 loopFile="var/.loop"
 #低于该门限值的,检测前不登录,单位为妙
-threshold=300
+threshold=180
 #租期默认为12天,单位为天
 tenancy=12
 #系统最大支持的租借天数
