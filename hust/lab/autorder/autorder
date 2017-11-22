@@ -21,6 +21,8 @@ tenancy=$9
 #系统最大租期
 shift
 maxTenancy=$9
+#机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
+deviationLimit=600
 
 #nohup sh ./${app} ${username} ${password} ${mamachinesListFile} ${cookieFile}  ${loginURL}  ${detailURLPrefix}  ${orderURLPrefix}  ${logfile} ${loopFile} ${threshold} >${monitorLog} 2>&1 &
 function printLog()
@@ -69,14 +71,22 @@ do
 			deadline=`expr ${secondsA} + $(( 3600 * 24 * ${tenancy} ))`
 			secondsNow=`date +%s`
 			diffSeconds=$(( ${deadline} - ${secondsNow} ))
-			if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
-				minDiff=${diffSeconds}
-			fi
+
 			if [ ${diffSeconds} -lt 0 ]; then
-				printLog "警告:${eachMachine}可能被长期占有,请确认!"
+				diffSeconds=$(( (-1) * ${diffSeconds} ))
+				#服务器与本地的时间误差范围内
+				if [ ${diffSeconds} -gt ${deviationLimit} ]; then 
+					printLog "警告:${eachMachine}可能被长期占有,请确认!"
+				fi
 			else
 				printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期"
 			fi
+
+			#if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
+			if [ ${diffSeconds} -lt ${minDiff} ]; then
+				minDiff=${diffSeconds}
+			fi
+			
 	    elif [[ ${rs} =~ "申请使用" ]]; then
 			orderURL="${orderURLPrefix}${eachMachine}"
 			#默认按最大租期续租
