@@ -1,6 +1,6 @@
 #!/bin/bash
 #此处为硬编码
-if [ $# !=14 ]; then
+if [ $# != 15 ]; then
     printLog "参数不合法,程序将退出!"
     exit 0
 fi
@@ -30,21 +30,22 @@ shift
 #进入高频刷新模式
 highFreqLimit=$9
 
+shift
+email=$9
 
-#nohup sh ./${app} ${username} ${password} ${mamachinesListFile} ${cookieFile}  ${loginURL}  ${detailURLPrefix}  ${orderURLPrefix}  ${logfile} ${loopFile} ${threshold} >${monitorLog} 2>&1 &
 function printLog()
 {
 	local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
-	if [ ! -f ${loginFile} ]; then
-		:>${loginFile}
+	if [ ! -f ${logFile} ]; then
+		:>${logFile}
 	fi
 	echo "[${dateStr}] $@">>${logFile}
 }
 
-if [ ! -f ${loginFile} ]; then
-    :>${loginFile}
+if [ ! -f ${logFile} ]; then
+    :>${logFile}
 fi
-truncate ${loginFile} --size=0
+truncate ${logFile} --size=0
 echo -n 1 > ${loopFile}
 
 printLog "启动服务!"
@@ -102,7 +103,14 @@ do
 			#默认按最大租期续租
 			curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
 			if [ $? -eq 0 ]; then
-				printLog "预定${eachMachine}成功!"
+                messageInfo="预定${eachMachine}成功!"
+                if [ ! "x${email}" = "x" ]; then
+                    echo "${messageInfo}" | mail -s "机器预订成功提醒" ${email}
+			        if [ ! $? -eq 0 ]; then
+				        printLog "警告:通知邮件发送失败!"
+                    fi
+                fi
+				printLog ${messageInfo}
 			else
 				printLog "预定${eachMachine}失败!"
 			fi
