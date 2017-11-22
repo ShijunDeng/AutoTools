@@ -2,7 +2,7 @@
 
 ##autorder是什么？
 
-**autorder**针对WNLO-DSAL实验室的[小机房预定系统](http://115.156.135.252/dcms/index.php)(HUST校园内网访问)，通过程序自动抢占机器，进行预定，一次设置，便可以省去预定实验室定期预定机器的麻烦。
+**autorder**针对WNLO-DSAL实验室的[小机房预定系统](http://115.156.135.252/dcms/index.php)(HUST校园内网访问)，通过程序自动抢占机器，进行预定，一次设置，便可以省去在实验室定期预定机器的麻烦。
 
 -------------------
 
@@ -22,7 +22,7 @@ cd hust/lab/autorder
 - 修改conf/account.conf中的用户名和密码
 - 修改conf/machinesList.conf，将要预定的机器的编号填入，每台机器编号之间以空格隔开
 - 修改autorder权限(最新版本若是root权限账户已经不需要该步骤)，```chmod a+x autorder```
-- 修改autorder和control.sh中相关的初始变量，比如预定天数，默认为12天，此步骤非必须
+- 修改autorder和control.sh中相关的初始变量(根据实际情况)，比如预定天数，默认为12天，此步骤非必须
 
 ### 使用
 

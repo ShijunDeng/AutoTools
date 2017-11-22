@@ -96,7 +96,6 @@ do
 			#if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
 			if [ ${diffSeconds} -lt ${minDiff} ]; then
 				minDiff=${diffSeconds}
-				echo ${eachMachine} ${minDiff}
 			fi			
 	    elif [[ ${rs} =~ "申请使用" ]]; then
 			orderURL="${orderURLPrefix}${eachMachine}"
