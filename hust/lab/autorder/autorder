@@ -22,7 +22,8 @@ tenancy=$9
 shift
 maxTenancy=$9
 #机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
-deviationLimit=600
+shift
+deviationLimit=$9
 
 #nohup sh ./${app} ${username} ${password} ${mamachinesListFile} ${cookieFile}  ${loginURL}  ${detailURLPrefix}  ${orderURLPrefix}  ${logfile} ${loopFile} ${threshold} >${monitorLog} 2>&1 &
 function printLog()

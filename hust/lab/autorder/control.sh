@@ -18,6 +18,8 @@ threshold=180
 tenancy=12
 #系统最大支持的租借天数
 maxTenancy=${tenancy}
+#机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
+deviationLimit=600
 
 source conf/account.conf
 
@@ -44,7 +46,7 @@ function start() {
 
     # 开启服务,并保存pid到pidfile文件中
     #nohup ./${app} -c ${conf} >>${logfile} 2>&1 &
-    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" "${tenancy}" "${maxTenancy}">${monitorLog} 2>&1 &
+    nohup sh ./${app} "${username}" "${password}" "${mamachinesListFile}" "${cookieFile}" "${loginURL}" "${detailURLPrefix}" "${orderURLPrefix}" "${logFile}" "${loopFile}" "${threshold}" "${tenancy}" "${maxTenancy}" "${deviationLimit}">${monitorLog} 2>&1 &
     echo $!>${pidfile}
     # 监控程序${app}会记录服务pid
     sleep 1
