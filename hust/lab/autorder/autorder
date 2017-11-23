@@ -1,45 +1,19 @@
 #!/bin/bash
 #此处为硬编码
-if [ $# != 15 ]; then
+if [ $# != 1 ]; then
     printLog "参数不合法,程序将退出!"
     exit 0
 fi
 
-username=$1
-password=$2
-mamachinesListFile=$3
-cookieFile=$4
-loginURL=$5
-detailURLPrefix=$6
-orderURLPrefix=$7
-logFile=$8
-loopFile=$9
-#低于该门限值的,检测前不登录
-shift
-threshold=$9
-#租期
-shift
-tenancy=$9
-#系统最大租期
-shift
-maxTenancy=$9
-#机器预定系统的时钟和本地可能不一致,需要允许误差,单位为秒
-shift
-deviationLimit=$9
-shift
-#进入高频刷新模式
-highFreqLimit=$9
-
-shift
-email=$9
+source $1
 
 function printLog()
 {
-	local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
-	if [ ! -f ${logFile} ]; then
-		:>${logFile}
-	fi
-	echo "[${dateStr}] $@">>${logFile}
+    local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
+    if [ ! -f ${logFile} ]; then
+        :>${logFile}
+    fi
+    echo "[${dateStr}] $@">>${logFile}
 }
 
 if [ ! -f ${logFile} ]; then
@@ -55,54 +29,54 @@ loginOption=1
 
 while [ `cat ${loopFile}` -eq 1 ];
 do
-	if [ ${loginOption} -eq 1 ]; then
-		curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
-		if [ $? -eq 0 ]; then
-			printLog "登录成功!"
-		else
-			printLog "登录失败!"
-			exit 1
-		fi
-	fi
+    if [ ${loginOption} -eq 1 ]; then
+        curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
+        if [ $? -eq 0 ]; then
+            printLog "登录成功!"
+        else
+            printLog "登录失败!"
+            exit 1
+        fi
+    fi
 
-	minDiff=$(( 3600 * 24 * ${tenancy} ))
-	machinesList="`cat ${mamachinesListFile}`"
-	for eachMachine in ${machinesList[@]}
-	do
-	    detailURL="${detailURLPrefix}${eachMachine}"
-	    rs=`curl -b ${cookieFile} ${detailURL}`
-	    wait
-	    if [[ ${rs} =~ "使用人" ]]; then
-			startTimeStr=`echo "${rs}" | grep -E  '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' -o`
-			lease=`echo "${rs}" | grep -E  '[0-9]{2} 天' -o | grep -E '[0-9]{2}' -o`
-			secondsA=`date -d "${startTimeStr}" +%s`
-			deadline=`expr ${secondsA} + $(( 3600 * 24 * ${tenancy} ))`
-			secondsNow=`date +%s`
-			diffSeconds=$(( ${deadline} - ${secondsNow} ))
+    minDiff=$(( 3600 * 24 * ${tenancy} ))
+    machinesList="`cat ${mamachinesListFile}`"
+    for eachMachine in ${machinesList[@]}
+    do
+        detailURL="${detailURLPrefix}${eachMachine}"
+        rs=`curl -b ${cookieFile} ${detailURL}`
+        wait
+        if [[ ${rs} =~ "使用人" ]]; then
+            startTimeStr=`echo "${rs}" | grep -E  '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' -o`
+            lease=`echo "${rs}" | grep -E  '[0-9]{2} 天' -o | grep -E '[0-9]{2}' -o`
+            secondsA=`date -d "${startTimeStr}" +%s`
+            deadline=`expr ${secondsA} + $(( 3600 * 24 * ${tenancy} ))`
+            secondsNow=`date +%s`
+            diffSeconds=$(( ${deadline} - ${secondsNow} ))
 
-			if [ ${diffSeconds} -lt 0 ]; then
-				diffSeconds=$(( (-1) * ${diffSeconds} ))
-				#服务器与本地的时间误差范围内
-				if [ ${diffSeconds} -gt ${deviationLimit} ]; then 
-					printLog "警告:${eachMachine}可能被长期占有,请确认!"
-					#过滤超期的机器对判断的干扰
-					diffSeconds=${minDiff}
-				else
-					printLog "警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
-				fi
-			else
-				printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
-			fi
+            if [ ${diffSeconds} -lt 0 ]; then
+                diffSeconds=$(( (-1) * ${diffSeconds} ))
+                #服务器与本地的时间误差范围内
+                if [ ${diffSeconds} -gt ${deviationLimit} ]; then 
+                    printLog "警告:${eachMachine}可能被长期占有,请确认!"
+                    #过滤超期的机器对判断的干扰
+                    diffSeconds=${minDiff}
+                else
+                    printLog "警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
+                fi
+            else
+                printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
+            fi
 
-			#if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
-			if [ ${diffSeconds} -lt ${minDiff} ]; then
-				minDiff=${diffSeconds}
-			fi			
-	    elif [[ ${rs} =~ "申请使用" ]]; then
-			orderURL="${orderURLPrefix}${eachMachine}"
-			#默认按最大租期续租
-			curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
-			if [ $? -eq 0 ]; then
+            #if [ ${diffSeconds} -lt ${minDiff} ] && [ ${diffSeconds} -gt 0 ]; then
+            if [ ${diffSeconds} -lt ${minDiff} ]; then
+                minDiff=${diffSeconds}
+            fi            
+        elif [[ ${rs} =~ "申请使用" ]]; then
+            orderURL="${orderURLPrefix}${eachMachine}"
+            #默认按最大租期续租
+            curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
+            if [ $? -eq 0 ]; then
                 messageInfo="预定${eachMachine}成功!"
                 if [ ! "x${email}" = "x" ]; then
                     echo "${messageInfo}" | mail -s "机器预订成功提醒" ${email}
@@ -110,33 +84,33 @@ do
                         printLog "警告:通知邮件发送失败!"
                     fi
                 fi
-				printLog ${messageInfo}
-			else
-				printLog "预定${eachMachine}失败!"
-			fi
-		else 
-			printLog "未知错误:${rs}!"
-	    fi
-	done
+                printLog ${messageInfo}
+            else
+                printLog "预定${eachMachine}失败!"
+            fi
+        else 
+            printLog "未知错误:${rs}!"
+        fi
+    done
 
-	#使开始进行高频刷新:因为预定系统所在的服务器和autorder所在的本地有时间误差,所以autorder对抢占时间的预测并不一定绝对准确,随着越来越接近抢占目标的deadline,
-	#刷新频率会越来越高,最快是1s,但这仍然可能发生这种情况：抢占目标到达deadline被系统释放时,autorder没有及时的刷新。因此,比较保险的方法就是加大刷新频率,但是这会
-	#增大服务器的压力,更容易被发现。
-	if [ ${minDiff} -lt ${highFreqLimit} ]; then
-		minDiff=30
-	fi
+    #使开始进行高频刷新:因为预定系统所在的服务器和autorder所在的本地有时间误差,所以autorder对抢占时间的预测并不一定绝对准确,随着越来越接近抢占目标的deadline,
+    #刷新频率会越来越高,最快是1s,但这仍然可能发生这种情况：抢占目标到达deadline被系统释放时,autorder没有及时的刷新。因此,比较保险的方法就是加大刷新频率,但是这会
+    #增大服务器的压力,更容易被发现。
+    if [ ${minDiff} -lt ${highFreqLimit} ]; then
+        minDiff=30
+    fi
 
-	sleepTime=$(( ${minDiff} / 60 + 1))
+    sleepTime=$(( ${minDiff} / 60 + 1))
 
-	printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测!"
+    printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测!"
 
-	if [ ${sleepTime} -gt ${threshold} ];then
-		loginOption=1		
-	else
-		printLog "进入频繁刷新时期,切换到直接请求模式!" 
-		loginOption=0
-	fi
-	sleep ${sleepTime}
+    if [ ${sleepTime} -gt ${threshold} ];then
+        loginOption=1        
+    else
+        printLog "进入频繁刷新时期,切换到直接请求模式!" 
+        loginOption=0
+    fi
+    sleep ${sleepTime}
 done
 
 

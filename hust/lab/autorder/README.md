@@ -18,11 +18,11 @@ cd hust/lab/autorder
 ```
 
 2.修改配置文件
-- 修改conf/account.conf中的username/password/email，参照示例即可
+
+- 修改conf/account.conf中的配置参数，参照示例和说明即可
 - email为接收预定通知的邮箱，若不需要启用邮箱通知服务将该字段置空即可；若启用该服务，请确保mail工具已被正确安装且可以被使用；mail的配置参照conf/mail.rc即可，可以用该文件直接覆盖mail默认配置文件；centos安装mail工具可使用命令``` yum -y install mail && yum -y install sendmail```
 - 修改conf/machinesList.conf，将要预定的机器的编号填入，每台机器编号之间以空格隔开
 - 修改autorder权限(最新版本若是root权限账户已经不需要该步骤)，```chmod a+x autorder```
-- 修改autorder和control.sh中相关的初始变量(根据实际情况)，比如预定天数，默认为12天，此步骤非必须
 
 ### 使用
 
