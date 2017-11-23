@@ -1,12 +1,13 @@
 #!/bin/bash
 #此处为硬编码
-if [ $# != 1 ]; then
+if [ $# -ne 1 ]; then
     printLog "参数不合法,程序将退出!"
     exit 0
 fi
 
 source $1
 
+#日志功能
 function printLog()
 {
     local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
@@ -16,10 +17,31 @@ function printLog()
     echo "[${dateStr}] $@">>${logFile}
 }
 
+#邮件通知功能
+function sendEmail()
+{
+    local subject="autorder通知"
+    local messageInfo="$1"
+
+    if [ $# -eq 2 ]; then
+        subject="$1"
+        messageInfo="$2"
+    fi
+
+    if [ ! "x${email}" = "x" ]; then
+        echo "${messageInfo}" | mail -s "${subject}" ${email}
+        if [ $? -ne 0 ]; then
+            printLog "通知邮件发送失败：${messageInfo}"
+        fi
+    fi
+}
+
 if [ ! -f ${logFile} ]; then
     :>${logFile}
+else
+    truncate ${logFile} --size=0
 fi
-truncate ${logFile} --size=0
+
 echo -n 1 > ${loopFile}
 
 printLog "启动服务!"
@@ -34,7 +56,9 @@ do
         if [ $? -eq 0 ]; then
             printLog "登录成功!"
         else
-            printLog "登录失败!"
+            messageInfo="登录失败,程序将退出!"
+            printLog ${messageInfo}
+            sendEmail ${messageInfo}
             exit 1
         fi
     fi
@@ -48,9 +72,9 @@ do
         wait
         if [[ ${rs} =~ "使用人" ]]; then
             startTimeStr=`echo "${rs}" | grep -E  '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' -o`
-            lease=`echo "${rs}" | grep -E  '[0-9]{1,2} 天' -o | grep -E '[0-9]{1,2}' -o`
-            secondsA=`date -d "${startTimeStr}" +%s`
-            deadline=`expr ${secondsA} + $(( 3600 * 24 * ${lease} ))`
+            lease=`echo "${rs}" | grep -E  '[0-9]{1,2} 天' -o | grep -E '[0-9]{2}' -o`
+            startTime=`date -d "${startTimeStr}" +%s`
+            deadline=`expr ${startTime} + $(( 3600 * 24 * ${lease} ))`
             secondsNow=`date +%s`
             diffSeconds=$(( ${deadline} - ${secondsNow} ))
 
@@ -62,7 +86,9 @@ do
                     #过滤超期的机器对判断的干扰
                     diffSeconds=${minDiff}
                 else
-                    printLog "警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
+                    messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
+                    printLog ${messageInfo}
+                    sendEmail ${messageInfo}
                 fi
             else
                 printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
@@ -75,21 +101,17 @@ do
         elif [[ ${rs} =~ "申请使用" ]]; then
             orderURL="${orderURLPrefix}${eachMachine}"
             #默认按最大租期续租
+            messageInfo="预定${eachMachine}成功!"
             curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
-            if [ $? -eq 0 ]; then
-                messageInfo="预定${eachMachine}成功!"
-                if [ ! "x${email}" = "x" ]; then
-                    echo "${messageInfo}" | mail -s "机器预订成功提醒" ${email}
-                    if [ ! $? -eq 0 ]; then
-                        printLog "警告:通知邮件发送失败!"
-                    fi
-                fi
-                printLog ${messageInfo}
-            else
-                printLog "预定${eachMachine}失败!"
+            if [ $? -ne 0 ]; then
+                 messageInfo="预定${eachMachine}失败!"
             fi
+            printLog ${messageInfo}
+            sendEmail ${messageInfo}
         else 
-            printLog "未知错误:${rs}!"
+            messageInfo="未知错误:${rs}!"
+            printLog ${messageInfo}
+            sendEmail ${messageInfo}
         fi
     done
 
@@ -97,6 +119,7 @@ do
     #刷新频率会越来越高,最快是1s,但这仍然可能发生这种情况：抢占目标到达deadline被系统释放时,autorder没有及时的刷新。因此,比较保险的方法就是加大刷新频率,但是这会
     #增大服务器的压力,更容易被发现。
     if [ ${minDiff} -lt ${highFreqLimit} ]; then
+        #开始1秒一次的高频刷新
         minDiff=30
     fi
 
@@ -110,6 +133,7 @@ do
         printLog "进入频繁刷新时期,切换到直接请求模式!" 
         loginOption=0
     fi
+
     sleep ${sleepTime}
 done
 

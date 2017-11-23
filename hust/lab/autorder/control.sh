@@ -26,8 +26,8 @@ function start() {
         echo "${app} is started, pid=${pid}"
         exit 0
     fi
-    if [ ! -f ${srcfile} ]; then
-        echo "程序意外终止:文件缺失"
+    if [ ! -f ${module} ]; then
+        echo "程序意外终止:${module}文件缺失!"
         exit 1
     fi
 
