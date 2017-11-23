@@ -1,6 +1,6 @@
 # 欢迎使用autorder
 
-##autorder是什么？
+## autorder是什么？
 
 **autorder**针对WNLO-DSAL实验室的[小机房预定系统](http://115.156.135.252/dcms/index.php)(HUST校园内网访问)，通过程序自动抢占机器，进行预定，一次设置，便可以省去在实验室定期预定机器的麻烦。
 
