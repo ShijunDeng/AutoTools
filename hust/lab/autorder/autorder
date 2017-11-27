@@ -1,11 +1,10 @@
 #!/bin/bash
+
 #此处为硬编码
 if [ $# -ne 1 ]; then
-    printLog "参数不合法,程序将退出!"
+    echo "参数不合法,程序将退出!"
     exit 0
 fi
-
-source $1
 
 #日志功能
 function printLog()
@@ -16,6 +15,8 @@ function printLog()
     fi
     echo "[${dateStr}] $@">>${logFile}
 }
+
+source $1
 
 #邮件通知功能
 function sendEmail()
@@ -88,7 +89,7 @@ do
                 else
                     messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
                     printLog ${messageInfo}
-                    sendEmail ${messageInfo}
+                    #sendEmail ${messageInfo}
                 fi
             else
                 printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
