@@ -110,6 +110,21 @@ function check_pid() {
     return 0
 }
 
+function daemon() {
+    local sleepTime=5
+    while [ 1 ];
+    do
+        check_pid
+        local running=$?
+        if [ ${running} -eq 0 ];then
+            local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
+            echo "[${dateStr}] 检测进程已经停止,守护进程将尝试重新启动进程!"
+            sh $BASH_SOURCE start
+        fi
+        sleep ${sleepTime}
+    done
+}
+
 action=$1
 case $action in
     "start" )
@@ -123,6 +138,10 @@ case $action in
     "status" )
         # 检查服务
         status
+        ;;
+     "daemon" )
+        # 启动守护进程
+        daemon
         ;;
     * )
         echo "warming:Unknown option (ignored) $action,Use start|stop|status,please"

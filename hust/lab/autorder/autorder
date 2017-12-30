@@ -54,13 +54,16 @@ while [ `cat ${loopFile}` -eq 1 ];
 do
     if [ ${loginOption} -eq 1 ]; then
         curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
-        if [ $? -eq 0 ]; then
-            printLog "登录成功!"
-        else
-            messageInfo="登录失败,程序将退出!"
+        while [ ! $? -eq 0 ];
+        do
+            curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
+            messageInfo="登录失败,程序将重试!"
             printLog ${messageInfo}
             sendEmail ${messageInfo}
-            exit 1
+            sleep 3s
+        done
+        if [ $? -eq 0 ]; then
+            printLog "登录成功!"
         fi
     fi
 
