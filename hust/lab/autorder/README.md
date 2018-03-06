@@ -37,6 +37,15 @@ sh control.sh start|stop|status
 - log/monitor.log为autorder软件的系统日志
 - log/autorder.log为程序预定机器和监控机器的日志
 
+
+3.守护进程
+
+- centos系统，修改/etc/rc.d/rc.local：```vim /etc/rc.d/rc.local```，在最后一行加入```cd ${AutoTools的安装目录}/AutoTools/hust/lab/autorder && nohup sh control.sh daemon &```，其它系统参照相关方案解决
+
+
+
+
+
 ### 其它
 
 程序比较简单，可结合代码移植。
