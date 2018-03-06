@@ -116,6 +116,8 @@ do
             messageInfo="未知错误:${rs}!"
             printLog ${messageInfo}
             sendEmail ${messageInfo}
+            #10s后重新检测
+            minDiff=600
         fi
     done
 
