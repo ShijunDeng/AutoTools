@@ -24,6 +24,8 @@ cd hust/lab/autorder
 - 修改conf/machinesList.conf，将要预定的机器的编号填入，每台机器编号之间以空格隔开
 - 修改autorder权限(最新版本若是root权限账户已经不需要该步骤)，```chmod a+x autorder```
 
+**△ 修改配置文件后，请重启autorder**
+
 ### 使用
 
 1.运行control.sh 启停、状态查看
@@ -40,7 +42,7 @@ sh control.sh start|stop|status
 
 3.守护进程
 
-- centos系统，修改/etc/rc.d/rc.local：```vim /etc/rc.d/rc.local```，在最后一行加入```cd ${AutoTools的安装目录}/AutoTools/hust/lab/autorder && nohup sh control.sh daemon &```，其它系统参照相关方案解决
+- 以centos7.0系统为例，修改/etc/rc.d/rc.local：```vim /etc/rc.d/rc.local```，在最后一行加入```cd ${AutoTools的安装目录}/AutoTools/hust/lab/autorder && nohup sh control.sh daemon &```，其它系统参照相关方案解决
 
 
 

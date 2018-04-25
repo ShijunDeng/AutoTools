@@ -39,8 +39,6 @@ function sendEmail()
 
 if [ ! -f ${logFile} ]; then
     :>${logFile}
-else
-    truncate ${logFile} --size=0
 fi
 
 echo -n 1 > ${loopFile}
@@ -50,9 +48,11 @@ printLog "启动服务!"
 #请求之前是否需要登录:高频请求不需要总是登录
 loginOption=1
 
+#控制脚本循环启停
 while [ `cat ${loopFile}` -eq 1 ];
 do
     if [ ${loginOption} -eq 1 ]; then
+        #登录,cookie
         curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
         while [ ! $? -eq 0 ];
         do
@@ -69,6 +69,14 @@ do
 
     minDiff=$(( 3600 * 24 * ${tenancy} ))
     machinesList="`cat ${mamachinesListFile}`"
+   
+    #初始化下一次进行检测的时间间隔值,默认为12天,以秒为单位存储在minDiff中
+    #遍历配置文件中列出的每台要抢占地机器,检测其使用状态
+    #    如已被占用,检测其距离到期的时间间隔,如小于minDiff,用该间隔值更新minDiff;对于 可能 已被长期占用的机器,给出警告
+    #    如未被占用,申请该机器
+    #下一次检测的时间 约 为 minDiff/60 秒后
+    #距离到期的时间越近,检测频率越快,最快每秒钟检测一次,处于快速检测状态时,使用cookie登录
+    #由于服务器时钟和本地时钟会有一定差异,因此在minDiff小于阀值时,开启高频检测模式  
     for eachMachine in ${machinesList[@]}
     do
         detailURL="${detailURLPrefix}${eachMachine}"
@@ -116,8 +124,8 @@ do
             messageInfo="未知错误:${rs}!"
             printLog ${messageInfo}
             sendEmail ${messageInfo}
-            #10s后重新检测
-            minDiff=600
+            #重新检测
+            minDiff=300
         fi
     done
 
@@ -142,6 +150,3 @@ do
 
     sleep ${sleepTime}
 done
-
-
-
