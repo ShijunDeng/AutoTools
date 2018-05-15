@@ -36,6 +36,17 @@ function sendEmail()
         fi
     fi
 }
+declare -a machinesList
+function updateMachinesList()
+{
+    local index=0
+    local tmpMachinesList="`cat ${mamachinesListFile}`"
+    for eachMachine  in ${tmpMachinesList[@]}
+    do
+       machinesList[index]=${eachMachine}
+       let index++
+    done
+}
 
 if [ ! -f ${logFile} ]; then
     :>${logFile}
@@ -47,6 +58,13 @@ printLog "启动服务!"
 
 #请求之前是否需要登录:高频请求不需要总是登录
 loginOption=1
+
+updateMachinesList
+declare -a lastEmailTime
+for(( i=0; i<${#machinesList[@]}; i++ )) 
+do
+    lastEmailTime[i]=0
+done
 
 #控制脚本循环启停
 while [ `cat ${loopFile}` -eq 1 ];
@@ -68,8 +86,7 @@ do
     fi
 
     minDiff=$(( 3600 * 24 * ${tenancy} ))
-    machinesList="`cat ${mamachinesListFile}`"
-   
+    updateMachinesList
     #初始化下一次进行检测的时间间隔值,默认为12天,以秒为单位存储在minDiff中
     #遍历配置文件中列出的每台要抢占地机器,检测其使用状态
     #    如已被占用,检测其距离到期的时间间隔,如小于minDiff,用该间隔值更新minDiff;对于 可能 已被长期占用的机器,给出警告
@@ -77,9 +94,11 @@ do
     #下一次检测的时间 约 为 minDiff/60 秒后
     #距离到期的时间越近,检测频率越快,最快每秒钟检测一次,处于快速检测状态时,使用cookie登录
     #由于服务器时钟和本地时钟会有一定差异,因此在minDiff小于阀值时,开启高频检测模式  
-    for eachMachine in ${machinesList[@]}
+    for(( i=0; i<${#machinesList[@]}; i++ )) 
     do
+    	eachMachine=${machinesList[i]}
         detailURL="${detailURLPrefix}${eachMachine}"
+        # </html>>操作系统</td><td>RedHat</td></tr><tr><td>使用人</td><td>姓名</td></tr><tr><td>开始时间</td><td>2018-04-23 09:37:55</td></tr><tr><td>时限</td><td>12 天</td></tr></table></center>
         rs=`curl -b ${cookieFile} ${detailURL}`
         wait
         if [[ ${rs} =~ "使用人" ]]; then
@@ -89,18 +108,28 @@ do
             deadline=`expr ${startTime} + $(( 3600 * 24 * ${lease} ))`
             secondsNow=`date +%s`
             diffSeconds=$(( ${deadline} - ${secondsNow} ))
-
+            
             if [ ${diffSeconds} -lt 0 ]; then
                 diffSeconds=$(( (-1) * ${diffSeconds} ))
-                #服务器与本地的时间误差范围内
+                #服务器与本地的时间误差超过预定范围,可能是由于机器被长期占用所致
                 if [ ${diffSeconds} -gt ${deviationLimit} ]; then 
-                    printLog "警告:${eachMachine}可能被长期占有,请确认!"
-                    #过滤超期的机器对判断的干扰
+                    messageInfo="警告:${eachMachine}可能被长期占有(开始时间:${startTimeStr}|时限:${lease}天),请及时确认!"
+                    printLog ${messageInfo}               
+                    #避免重复发送通知
+                    if [ $(( ${secondsNow} - ${lastEmailTime[i]} )) -gt ${warmEmailSendInterval} ]; then
+                        sendEmail "${messageInfo}"
+                    fi	                 
+                    lastEmailTime[i]=secondsNow
+                    #过滤超期占用的机器对后面判断的干扰
                     diffSeconds=${minDiff}
                 else
                     messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
-                    printLog ${messageInfo}
-                    #sendEmail ${messageInfo}
+                    printLog ${messageInfo}      
+                    #避免重复发送通知
+                    if [ $(( ${secondsNow} - ${lastEmailTime[i]} )) -gt ${warmEmailSendInterval} ]; then
+                        sendEmail "${messageInfo}"
+                    fi	                  
+                    lastEmailTime[i]=secondsNow
                 fi
             else
                 printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
@@ -139,7 +168,7 @@ do
 
     sleepTime=$(( ${minDiff} / 60 + 1))
 
-    printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 )))秒后再次检测!"
+    printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 ))秒)秒后再次检测!"
 
     if [ ${sleepTime} -gt ${threshold} ];then
         loginOption=1        

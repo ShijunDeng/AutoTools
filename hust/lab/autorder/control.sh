@@ -33,7 +33,7 @@ function start() {
 
     # 开启服务,并保存pid到pidfile文件中
     #nohup ./${app} -c ${conf} >>${logfile} 2>&1 &
-    nohup sh ./${app} ${envConf}>${monitorLog} 2>&1 &
+    nohup sh ./${app} ${envConf}>>${monitorLog} 2>&1 &
     echo $!>${pidfile}
     # 监控程序${app}会记录服务pid
     sleep 1
