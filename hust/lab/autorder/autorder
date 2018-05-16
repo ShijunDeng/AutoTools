@@ -36,16 +36,41 @@ function sendEmail()
         fi
     fi
 }
-declare -a machinesList
-function updateMachinesList()
+
+declare -a machinesList    
+machinesList="`cat ${machinesListFile}`"
+
+declare -A lastEmailTimeOverdue=()
+declare -A lastEmailTimeClockDiff=()
+declare -A lastEmailTimeOrderFailed=()
+declare -A lastEmailTimeOther=()
+function updateLastEmailTime()
 {
-    local index=0
-    local tmpMachinesList="`cat ${mamachinesListFile}`"
-    for eachMachine  in ${tmpMachinesList[@]}
+    for eachMachine  in ${machinesList[@]}
     do
-       machinesList[index]=${eachMachine}
-       let index++
+        #上次发送"长期占用通知"的时间
+        if [ "x${lastEmailTimeOverdue[${eachMachine}]}" = "x" ]; then
+    	    lastEmailTimeOverdue[${eachMachine}]=0
+        fi    
+        #上次发送"时钟不一致通知"的时间
+	    if [ "x${lastEmailTimeClockDiff[${eachMachine}]}" = "x" ]; then
+    	    lastEmailTimeClockDiff[${eachMachine}]=0
+        fi  
+	    #上次发送"预定失败通知"的时间
+	    if [ "x${lastEmailTimeOrderFailed[${eachMachine}]}" = "x" ]; then
+    	    lastEmailTimeOrderFailed[${eachMachine}]=0
+        fi  
+        let index++
     done
+    #上次发送"登录失败通知"的时间
+    if [ "x${lastEmailTimeOther["loginFailed"]}" = "x" ]; then
+    	lastEmailTimeOther["loginFailed"]=0
+    fi
+
+    #上次发送"未知错误通知"的时间
+    if [ "x${lastEmailTimeOther["unknown"]}" = "x" ]; then
+    	lastEmailTimeOther["unknown"]=0
+    fi
 }
 
 if [ ! -f ${logFile} ]; then
@@ -54,30 +79,35 @@ fi
 
 echo -n 1 > ${loopFile}
 
-printLog "启动服务!"
+messageInfo="(重新)启动autorder服务!"
+printLog "${messageInfo}"
+sendEmail ${messageInfo}
 
 #请求之前是否需要登录:高频请求不需要总是登录
 loginOption=1
 
-updateMachinesList
-declare -a lastEmailTime
-for(( i=0; i<${#machinesList[@]}; i++ )) 
-do
-    lastEmailTime[i]=0
-done
+#初始化"通知邮件"的"上次发送时间"记录
+updateLastEmailTime
 
 #控制脚本循环启停
 while [ `cat ${loopFile}` -eq 1 ];
 do
+    #初始化"通知邮件"的"上次发送时间"记录
+    updateLastEmailTime
+    
     if [ ${loginOption} -eq 1 ]; then
         #登录,cookie
-        curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
+        rs=`curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null`
         while [ ! $? -eq 0 ];
         do
             curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
-            messageInfo="登录失败,程序将重试!"
+            messageInfo="账号${username}登机房预定系统录失败,autoder将在3s后重试!"            
             printLog ${messageInfo}
-            sendEmail ${messageInfo}
+            secondsNow=`date +%s`
+            if [ $(( ${secondsNow} - ${lastEmailTimeOther["loginFailed"]} )) -gt ${warnEmailSendIntervalLoginFailed} ]; then
+                sendEmail "${messageInfo}"
+                lastEmailTimeOther["loginFailed"]=${secondsNow}
+            fi	  
             sleep 3s
         done
         if [ $? -eq 0 ]; then
@@ -86,7 +116,7 @@ do
     fi
 
     minDiff=$(( 3600 * 24 * ${tenancy} ))
-    updateMachinesList
+    machinesList="`cat ${machinesListFile}`"
     #初始化下一次进行检测的时间间隔值,默认为12天,以秒为单位存储在minDiff中
     #遍历配置文件中列出的每台要抢占地机器,检测其使用状态
     #    如已被占用,检测其距离到期的时间间隔,如小于minDiff,用该间隔值更新minDiff;对于 可能 已被长期占用的机器,给出警告
@@ -94,11 +124,10 @@ do
     #下一次检测的时间 约 为 minDiff/60 秒后
     #距离到期的时间越近,检测频率越快,最快每秒钟检测一次,处于快速检测状态时,使用cookie登录
     #由于服务器时钟和本地时钟会有一定差异,因此在minDiff小于阀值时,开启高频检测模式  
-    for(( i=0; i<${#machinesList[@]}; i++ )) 
+    for eachMachine  in ${machinesList[@]}
     do
-    	eachMachine=${machinesList[i]}
         detailURL="${detailURLPrefix}${eachMachine}"
-        # </html>>操作系统</td><td>RedHat</td></tr><tr><td>使用人</td><td>姓名</td></tr><tr><td>开始时间</td><td>2018-04-23 09:37:55</td></tr><tr><td>时限</td><td>12 天</td></tr></table></center>
+        # </html>>操作系统</td><td>RedHat</td></tr><tr><td>使用人</td><td>姓名</td></tr><tr><td>开始时间</td><td>2017-04-23 09:37:55</td></tr><tr><td>时限</td><td>12 天</td></tr></table></center>
         rs=`curl -b ${cookieFile} ${detailURL}`
         wait
         if [[ ${rs} =~ "使用人" ]]; then
@@ -116,20 +145,20 @@ do
                     messageInfo="警告:${eachMachine}可能被长期占有(开始时间:${startTimeStr}|时限:${lease}天),请及时确认!"
                     printLog ${messageInfo}               
                     #避免重复发送通知
-                    if [ $(( ${secondsNow} - ${lastEmailTime[i]} )) -gt ${warmEmailSendInterval} ]; then
-                        sendEmail "${messageInfo}"
+                    if [ $(( ${secondsNow} - ${lastEmailTimeOverdue[${eachMachine}]} )) -gt ${warnEmailSendIntervalOverdue} ]; then
+                        sendEmail "${messageInfo}" 
+                        lastEmailTimeOverdue[${eachMachine}]=${secondsNow}
                     fi	                 
-                    lastEmailTime[i]=secondsNow
                     #过滤超期占用的机器对后面判断的干扰
                     diffSeconds=${minDiff}
                 else
                     messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
                     printLog ${messageInfo}      
                     #避免重复发送通知
-                    if [ $(( ${secondsNow} - ${lastEmailTime[i]} )) -gt ${warmEmailSendInterval} ]; then
+                    if [ $(( ${secondsNow} - ${lastEmailTimeClockDiff[${eachMachine}]} )) -gt ${warnEmailSendIntervalClockDiff} ]; then
                         sendEmail "${messageInfo}"
-                    fi	                  
-                    lastEmailTime[i]=secondsNow
+                        lastEmailTimeClockDiff[${eachMachine}]=${secondsNow}
+                    fi	                                     
                 fi
             else
                 printLog "${eachMachine}正在租期内,将在$(( ${diffSeconds} / ( 24 * 3600) ))天$(( ${diffSeconds} % ( 24 * 3600) / 3600 ))时$(( ${diffSeconds} % 3600 / 60 ))分$(( ${diffSeconds} % 60 ))秒后到期!"
@@ -144,15 +173,24 @@ do
             #默认按最大租期续租
             messageInfo="预定${eachMachine}成功!"
             curl -F "sel_num=${maxTenancy}" -b ${cookieFile} ${orderURL} > /dev/null
+            secondsNow=`date +%s`
             if [ $? -ne 0 ]; then
                  messageInfo="预定${eachMachine}失败!"
+                 if [ $(( ${secondsNow} - ${lastEmailTimeOrderFailed[${eachMachine}]} )) -gt ${warnEmailSendIntervalOrderFailed} ]; then
+                    sendEmail "${messageInfo}"
+                    lastEmailTimeOrderFailed[${eachMachine}]=${secondsNow}
+                 fi	
             fi
             printLog ${messageInfo}
             sendEmail ${messageInfo}
         else 
             messageInfo="未知错误:${rs}!"
             printLog ${messageInfo}
-            sendEmail ${messageInfo}
+            secondsNow=`date +%s`
+            if [ $(( ${secondsNow} - ${lastEmailTimeOther["unknown"]} )) -gt ${warnEmailSendIntervalUnknown} ]; then
+                sendEmail "${messageInfo}"
+                lastEmailTimeOther["unknown"]=${secondsNow}
+            fi		
             #重新检测
             minDiff=300
         fi
@@ -179,3 +217,7 @@ do
 
     sleep ${sleepTime}
 done
+
+messageInfo="警告:已停止autorder服务,请及时确认!"
+printLog "${messageInfo}"
+sendEmail ${messageInfo}
