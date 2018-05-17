@@ -30,7 +30,7 @@ function testNetwork()
       pingip=$1
     fi
 
-    ping -c 4 ${pingip} > /dev/null 2>&1
+    ping -c 1 ${pingip} > /dev/null 2>&1
    
     if [ $? -eq 0 ]; then
         return 0
@@ -43,7 +43,7 @@ function waitUtilNetworkAvailable()
 {
     local pingip="www.baidu.com"
 
-    ping -c 4 ${pingip} > /dev/null 2>&1
+    ping -c 1 ${pingip} > /dev/null 2>&1
     
     while [ $? -ne 0 ];
     do
@@ -65,11 +65,13 @@ function sendEmail()
         messageInfo="$2"
     fi
     
+    ping -c 1 ${pingip} > /dev/null 2>&1
+    
     while [ $? -ne 0 ];
     do
     	printLog "无法连接email服务器${mailServer},将在${networkCheckInterval}秒后重试!"
     	sleep ${networkCheckInterval}
-        ping -c 4 ${pingip} > /dev/null 2>&1
+        ping -c 1 ${pingip} > /dev/null 2>&1
     done
 
     if [ ! "x${email}" = "x" ]; then
