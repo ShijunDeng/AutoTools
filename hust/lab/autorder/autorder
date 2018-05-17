@@ -10,30 +10,76 @@ fi
 function printLog()
 {
     local dateStr=`date "+%Y-%m-%d %H:%M:%S"`
+
     if [ ! -f ${logFile} ]; then
         :>${logFile}
     fi
+
     echo "[${dateStr}] $@">>${logFile}
 }
 
 source $1
+
+#测试$1指定的网络是否可达(默认测试www.baidu.com)
+function testNetwork()
+{
+
+    local pingip="www.baidu.com"
+
+    if [ $# -eq 1 ]; then
+      pingip=$1
+    fi
+
+    ping -c 4 ${pingip} > /dev/null 2>&1
+   
+    if [ $? -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+function waitUtilNetworkAvailable()
+{
+    local pingip="www.baidu.com"
+
+    ping -c 4 ${pingip} > /dev/null 2>&1
+    
+    while [ $? -ne 0 ];
+    do
+    	printLog "无法连接外网,将在${networkCheckInterval}秒后重试!"
+    	sleep ${networkCheckInterval}
+        ping -c 4 ${pingip} > /dev/null 2>&1
+    done
+}
 
 #邮件通知功能
 function sendEmail()
 {
     local subject="autorder通知"
     local messageInfo="$1"
+    local pingip="smtp.163.com" #mail server
 
     if [ $# -eq 2 ]; then
         subject="$1"
         messageInfo="$2"
     fi
+    
+    while [ $? -ne 0 ];
+    do
+    	printLog "无法连接email服务器${mailServer},将在${networkCheckInterval}秒后重试!"
+    	sleep ${networkCheckInterval}
+        ping -c 4 ${pingip} > /dev/null 2>&1
+    done
 
     if [ ! "x${email}" = "x" ]; then
         echo "${messageInfo}" | mail -s "${subject}" ${email}
-        if [ $? -ne 0 ]; then
-            printLog "通知邮件发送失败：${messageInfo}"
-        fi
+        while [ $? -ne 0 ]; 
+        do
+            printLog "通知邮件发送失败：${messageInfo},将在${networkCheckInterval}秒后重试!"
+            sleep ${networkCheckInterval}
+            echo "${messageInfo}" | mail -s "${subject}" ${email}
+        done
     fi
 }
 
@@ -62,6 +108,7 @@ function updateLastEmailTime()
         fi  
         let index++
     done
+
     #上次发送"登录失败通知"的时间
     if [ "x${lastEmailTimeOther["loginFailed"]}" = "x" ]; then
     	lastEmailTimeOther["loginFailed"]=0
@@ -81,7 +128,7 @@ echo -n 1 > ${loopFile}
 
 messageInfo="(重新)启动autorder服务!"
 printLog "${messageInfo}"
-sendEmail ${messageInfo}
+sendEmail "${messageInfo}"
 
 #请求之前是否需要登录:高频请求不需要总是登录
 loginOption=1
@@ -94,10 +141,12 @@ while [ `cat ${loopFile}` -eq 1 ];
 do
     #初始化"通知邮件"的"上次发送时间"记录
     updateLastEmailTime
-    
+    waitUtilNetworkAvailable
+
     if [ ${loginOption} -eq 1 ]; then
         #登录,cookie
         rs=`curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null`
+
         while [ ! $? -eq 0 ];
         do
             curl -F "username=${username}" -F "password=${password}" --cookie-jar ${cookieFile} ${loginURL} > /dev/null
@@ -110,11 +159,13 @@ do
             fi	  
             sleep 3s
         done
+
         if [ $? -eq 0 ]; then
             printLog "登录成功!"
         fi
     fi
-
+    
+    unknownErr=0
     minDiff=$(( 3600 * 24 * ${tenancy} ))
     machinesList="`cat ${machinesListFile}`"
     #初始化下一次进行检测的时间间隔值,默认为12天,以秒为单位存储在minDiff中
@@ -130,6 +181,7 @@ do
         # </html>>操作系统</td><td>RedHat</td></tr><tr><td>使用人</td><td>姓名</td></tr><tr><td>开始时间</td><td>2017-04-23 09:37:55</td></tr><tr><td>时限</td><td>12 天</td></tr></table></center>
         rs=`curl -b ${cookieFile} ${detailURL}`
         wait
+        
         if [[ ${rs} =~ "使用人" ]]; then
             startTimeStr=`echo "${rs}" | grep -E  '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' -o`
             lease=`echo "${rs}" | grep -E  '[0-9]{1,2} 天' -o | grep -E '[0-9]{2}' -o`
@@ -152,7 +204,7 @@ do
                     #过滤超期占用的机器对后面判断的干扰
                     diffSeconds=${minDiff}
                 else
-                    messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,请确认!"
+                    messageInfo="警告:${eachMachine}的租期已到,但被autorder检测到仍处于占用中,可能是服务器与本地时钟不一致所致,autorder将继续抢占,请确认!"
                     printLog ${messageInfo}      
                     #避免重复发送通知
                     if [ $(( ${secondsNow} - ${lastEmailTimeClockDiff[${eachMachine}]} )) -gt ${warnEmailSendIntervalClockDiff} ]; then
@@ -193,6 +245,7 @@ do
             fi		
             #重新检测
             minDiff=300
+            unknownErr=1
         fi
     done
 
@@ -208,7 +261,8 @@ do
 
     printLog "将在${sleepTime}($(( ${sleepTime} / ( 24 * 3600) ))天$(( ${sleepTime} % ( 24 * 3600) / 3600 ))时$(( ${sleepTime} % 3600 / 60 ))分$(( ${sleepTime} % 60 ))秒)秒后再次检测!"
 
-    if [ ${sleepTime} -gt ${threshold} ];then
+    #下次检测时间大于门限值的或者出现未知错误的,需要重新登录
+    if [ ${sleepTime} -gt ${threshold} -o ${unknownErr} -eq 1 ]; then
         loginOption=1        
     else
         printLog "进入频繁刷新时期,切换到直接请求模式!" 
@@ -220,4 +274,4 @@ done
 
 messageInfo="警告:已停止autorder服务,请及时确认!"
 printLog "${messageInfo}"
-sendEmail ${messageInfo}
+sendEmail "${messageInfo}"
